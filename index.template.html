@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WMT Pay Period Printer</title>
+  <style>
+    :root {
+      --navy: #1e3a5f;
+      --navy-2: #16314f;
+      --gold: #f0c14b;
+      --paper: #f6f3ec;
+      --ink: #1a1a1a;
+      --muted: #5b6470;
+      --line: #d9d3c6;
+      --card: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    header {
+      background: linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+      color: #fff;
+      padding: 28px 24px 24px;
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 1.55rem;
+      font-weight: 700;
+    }
+    header p { margin: 0; opacity: 0.9; max-width: 46rem; }
+    main { max-width: 820px; margin: 0 auto; padding: 24px 18px 48px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.7) inset;
+    }
+    h2 { margin: 0 0 10px; font-size: 1.15rem; color: var(--navy); }
+    ol, ul { margin: 0; padding-left: 1.25rem; }
+    li { margin: 0.4rem 0; }
+    .bookmarklet-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin: 16px 0 8px;
+    }
+    #bookmarkletLink {
+      display: inline-block;
+      background: var(--gold);
+      color: #111;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 2px dashed #b8860b;
+      cursor: grab;
+    }
+    #bookmarkletLink:hover { filter: brightness(1.05); }
+    .ghost {
+      background: #fff;
+      color: var(--navy);
+      border: 1px solid var(--navy);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .hint { color: var(--muted); font-size: 0.92rem; }
+    kbd {
+      font-family: inherit;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 0 5px;
+      font-size: 0.85em;
+    }
+    .ok { color: #0f6b3e; font-weight: 700; }
+    footer { color: var(--muted); font-size: 0.85rem; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WMT Pay Period Printer</h1>
+    <p>Click once on Worksheet View. This loads every day in the pay period and turns them into one printable file you can save as a PDF.</p>
+  </header>
+  <main>
+    <section class="card">
+      <h2>1. Install the bookmark</h2>
+      <p>Show your bookmarks bar (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd>), then drag this button onto it:</p>
+      <div class="bookmarklet-box">
+        <a id="bookmarkletLink" href="#">Print Pay Period</a>
+        <button type="button" class="ghost" id="copyBtn">Copy bookmark address</button>
+      </div>
+      <p class="hint" id="copyStatus">Chrome or Edge. If drag-and-drop is blocked, copy the address and paste it as a new bookmark’s URL.</p>
+    </section>
+
+    <section class="card">
+      <h2>2. Run it on Worksheet View</h2>
+      <ol>
+        <li>Log into WMT Scheduler.</li>
+        <li>Open <strong>Views → Work Sheet View</strong>.</li>
+        <li>Click any date in the pay period you want (the row of dates near the top).</li>
+        <li>Click the <strong>Print Pay Period</strong> bookmark.</li>
+        <li>Wait while each day loads — stay on that tab. If this area has an OS schedule, that is loaded too.</li>
+        <li>Click <strong>Print</strong>. A print window opens — print it, or pick Save as PDF in that dialog if you want a file.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>What you get</h2>
+      <ul>
+        <li>One printout covering the whole pay period (usually 14 days).</li>
+        <li>One page per day. OS names go in the Sup column on the area sheet, and OS requests are merged in.</li>
+        <li>That day’s shifts, who is working them, and the request tables.</li>
+      </ul>
+      <p class="hint">This only reads pages you can already open. It does not change the schedule. Close the overlay with <kbd>Esc</kbd> to return to WMT.</p>
+    </section>
+
+    <footer>
+      Local tool for Worksheet View on wmtscheduler.faa.gov. No install, no internet required after you save this folder.
+    </footer>
+  </main>
+  <script>
+    const BOOKMARKLET = __BOOKMARKLET_JSON__;
+    const link = document.getElementById('bookmarkletLink');
+    link.href = 'javascript:' + encodeURIComponent(BOOKMARKLET);
+
+    const copyBtn = document.getElementById('copyBtn');
+    const copyStatus = document.getElementById('copyStatus');
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(link.href);
+        copyStatus.innerHTML = '<span class="ok">Copied.</span> Create a bookmark and paste that as the URL.';
+      } catch (err) {
+        prompt('Copy this bookmark address:', link.href);
+      }
+    });
+  </script>
+</body>
+</html>
