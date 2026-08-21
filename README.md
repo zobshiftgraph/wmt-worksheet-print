@@ -6,7 +6,7 @@ Print every day of a WMT **Work Sheet View** pay period as one document. OS name
 
 After the site is published, open:
 
-**https://thom7215.github.io/wmt-worksheet-print/**
+**https://zobshiftgraph.github.io/wmt-worksheet-print/**
 
 1. Show your bookmarks bar (`Ctrl+Shift+B`).
 2. Drag **Print Pay Period** onto the bar.
@@ -18,7 +18,7 @@ If you update the bookmark later, delete the old one and drag it from that page 
 ## Use it from a clone
 
 ```bash
-git clone https://github.com/thom7215/wmt-worksheet-print.git
+git clone https://github.com/zobshiftgraph/wmt-worksheet-print.git
 ```
 
 Open `index.html` (or `Start Worksheet Printer.bat` on Windows) and drag the bookmark from there.
