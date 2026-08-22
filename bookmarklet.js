@@ -1,9 +1,9 @@
 (async function () {
-  if (window.__wmtPPRunning) return;
-  window.__wmtPPRunning = true;
+  if (window.__wmtPPBusy) return;
 
   var ROOT_ID = 'wmt-pp-root';
   var STYLE_ID = 'wmt-pp-style';
+  var SNAPSHOT_KEY = 'wmtPPSnapshot';
   var INDEX_RE = /\/Views\/WorksheetView\/Index\/(\d+)/i;
   var REQ_HEADERS = ['CPC', 'TYPE', 'FROM', 'TO', 'WITH', 'STATUS', 'INI', 'DATE'];
 
@@ -585,30 +585,101 @@
     }
   }
 
-  function openPrintWindow() {
+  function pagesHtml() {
     var pages = $('wmt-pp-pages');
-    if (!pages || !pages.children.length) {
-      alert('Nothing to print yet. Wait for the days to finish loading, then click Print.');
-      return;
+    return pages ? pages.innerHTML : '';
+  }
+
+  function hasPages() {
+    var pages = $('wmt-pp-pages');
+    return !!(pages && pages.children.length);
+  }
+
+  function saveSnapshot(html, status) {
+    try {
+      sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+        v: 1,
+        at: Date.now(),
+        title: document.title || '',
+        status: status || '',
+        html: html
+      }));
+    } catch (e0) {}
+    window.__wmtPPKeepAlive = { html: html, status: status || '' };
+  }
+
+  function loadSnapshot() {
+    try {
+      var data = JSON.parse(sessionStorage.getItem(SNAPSHOT_KEY) || 'null');
+      if (!data || data.v !== 1 || !data.html) return null;
+      if (Date.now() - data.at > 6 * 60 * 60 * 1000) return null;
+      return data;
+    } catch (e1) {
+      return null;
+    }
+  }
+
+  function standaloneCss() {
+    return printDocCss() +
+      '.wmt-pp-bar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;background:#f7f4ec;color:#111;border-bottom:2px solid #1e3a5f;font-family:Arial,Helvetica,sans-serif}' +
+      '.wmt-pp-bar b{font-size:15px}' +
+      '.wmt-pp-bar span{font-size:13px}' +
+      '.wmt-pp-btn{border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f}' +
+      '.wmt-pp-pages{padding:16px 18px 36px}' +
+      '@media print{.wmt-pp-bar{display:none!important}.wmt-pp-pages{padding:0}}';
+  }
+
+  function writeStandaloneHtml(html, title, autoPrint) {
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title +
+      '</title><style>' + standaloneCss() + '</style></head><body>' +
+      '<div class="wmt-pp-bar"><div><b>WMT pay period printer</b><br><span>This window is not part of WMT, so a worksheet refresh will not close it.</span></div>' +
+      '<button class="wmt-pp-btn" type="button" id="p">Print</button></div>' +
+      '<div class="wmt-pp-pages" id="wmt-pp-pages">' + html + '</div>' +
+      '<script>(function(){function fit(){var p=document.createElement("div");p.style.cssText="position:absolute;left:-9999px;height:10in;width:1px";document.body.appendChild(p);var m=p.offsetHeight;document.body.removeChild(p);if(!m)return;var days=document.querySelectorAll(".wmt-pp-day");for(var i=0;i<days.length;i++){var d=days[i];d.style.zoom="1";if(d.scrollHeight>m){var z=m/d.scrollHeight;if(z<0.62)z=0.62;d.style.zoom=String(Math.round(z*1000)/1000);}}}function go(){try{fit();}catch(e){}window.print();}document.getElementById("p").onclick=go;setTimeout(function(){try{fit();}catch(e){}' +
+      (autoPrint ? 'go();' : '') +
+      '},350);})();<\/script></body></html>';
+  }
+
+  function openStandaloneWindow(autoPrint) {
+    var html = pagesHtml();
+    if (!html) {
+      if (autoPrint) alert('Nothing to print yet. Wait for the days to finish loading, then click Print.');
+      return null;
     }
     var title = (document.title || 'WMT Worksheet').replace(/[<>]/g, '');
-    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title +
-      '</title><style>' + printDocCss() + '</style></head><body>' + pages.innerHTML + '</body></html>';
-    var w = window.open('', '_blank');
+    var w = window.__wmtPPPreview;
+    if (!w || w.closed) {
+      w = window.open('', 'wmtPPPreview');
+      window.__wmtPPPreview = w;
+    }
     if (!w) {
-      alert('The browser blocked the print window.\n\nAllow pop-ups for wmtscheduler.faa.gov, then click Print again.');
-      return;
+      if (autoPrint) {
+        alert('The browser blocked the preview window.\n\nAllow pop-ups for wmtscheduler.faa.gov, then click Print again.');
+      }
+      return null;
     }
     w.document.open();
-    w.document.write(html);
+    w.document.write(writeStandaloneHtml(html, title, !!autoPrint));
     w.document.close();
     w.focus();
-    setTimeout(function () {
-      try { fitPrintDays(w.document); } catch (e0) {}
-      setTimeout(function () {
-        try { w.print(); } catch (e1) {}
-      }, 150);
-    }, 350);
+    return w;
+  }
+
+  function watchOverlay() {
+    if (window.__wmtPPObserver) return;
+    window.__wmtPPObserver = new MutationObserver(function () {
+      var keep = window.__wmtPPKeepAlive;
+      if (!keep || !keep.html || $(ROOT_ID) || window.__wmtPPBusy || window.__wmtPPRestoring) return;
+      window.__wmtPPRestoring = true;
+      try {
+        ensureUi();
+        $('wmt-pp-pages').innerHTML = keep.html;
+        setStatus(keep.status || 'Preview restored after WMT updated the page.');
+      } finally {
+        window.__wmtPPRestoring = false;
+      }
+    });
+    window.__wmtPPObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
 
   function ensureUi() {
@@ -624,7 +695,7 @@
 
     var root = document.createElement('div');
     root.id = ROOT_ID;
-    root.innerHTML = '<div class="wmt-pp-bar" style="background:#f7f4ec;color:#111"><div><b style="color:#111">WMT pay period printer</b><br><span id="wmt-pp-summary" style="color:#111">Starting…</span></div><div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button" style="background:#1e3a5f;color:#fff;border:1px solid #1e3a5f">Print</button><button class="wmt-pp-btn close" id="wmt-pp-close" type="button" style="background:#fff;color:#111;border:1px solid #333">Close</button></div></div><div class="wmt-pp-status" id="wmt-pp-status" style="color:#5c4800">Looking for pay-period dates…</div><div class="wmt-pp-pages" id="wmt-pp-pages"></div>';
+    root.innerHTML = '<div class="wmt-pp-bar" style="background:#f7f4ec;color:#111"><div><b style="color:#111">WMT pay period printer</b><br><span id="wmt-pp-summary" style="color:#111">Starting…</span></div><div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button" style="background:#1e3a5f;color:#fff;border:1px solid #1e3a5f">Print</button><button class="wmt-pp-btn close" id="wmt-pp-reload" type="button" style="background:#fff;color:#111;border:1px solid #333">Reload</button><button class="wmt-pp-btn close" id="wmt-pp-close" type="button" style="background:#fff;color:#111;border:1px solid #333">Close</button></div></div><div class="wmt-pp-status" id="wmt-pp-status" style="color:#5c4800">Looking for pay-period dates…</div><div class="wmt-pp-pages" id="wmt-pp-pages"></div>';
     document.body.appendChild(root);
 
     function bind(el, fn) {
@@ -641,9 +712,17 @@
     bind($('wmt-pp-close'), function () {
       root.remove();
       style.remove();
-      window.__wmtPPRunning = false;
+      window.__wmtPPBusy = false;
     });
-    bind($('wmt-pp-print'), openPrintWindow);
+    bind($('wmt-pp-print'), function () {
+      openStandaloneWindow(true);
+    });
+    bind($('wmt-pp-reload'), function () {
+      if (window.__wmtPPBusy) return;
+      try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch (e2) {}
+      window.__wmtPPKeepAlive = null;
+      collectAndRender();
+    });
     document.addEventListener('keydown', function onEsc(ev) {
       if (ev.key === 'Escape' && $(ROOT_ID)) {
         $('wmt-pp-close').click();
@@ -772,92 +851,128 @@
     page.appendChild(sec);
   }
 
-  try {
-    if ($('tblEditGrid') && !$('lblSelectedDate')) {
-      alert('This looks like Edit Schedule.\n\nOpen Views → Work Sheet View, click any date in the pay period, then use this bookmark again.');
-      window.__wmtPPRunning = false;
-      return;
-    }
-    if (!$('lblSelectedDate') && !$('ScheduledShifts') && !$('WorksheetViewDayStrip')) {
-      alert('Open WMT Worksheet View first (Views → Work Sheet View), then click this bookmark.');
-      window.__wmtPPRunning = false;
-      return;
-    }
-
-    ensureUi();
-    var days = collectDays();
-    var currentNum = currentDayNum();
-    var homeArea = currentAreaInfo(document);
-    var pair = findPairedArea(document);
-    $('wmt-pp-summary').textContent = days.length
-      ? ('Found ' + days.length + ' days' + (pair ? (' + ' + pair.name) : ''))
-      : 'No date strip found';
-
-    if (!days.length) {
-      setStatus('Could not find the pay-period date row (WorksheetViewDayStrip).');
-      window.__wmtPPRunning = false;
-      return;
-    }
-
-    var pages = $('wmt-pp-pages');
-    var primary = await loadAreaDays(days, currentNum, homeArea && homeArea.name, homeArea && homeArea.name);
-    var secondary = [];
-    var pairNote = '';
-    var switchedDoc = null;
-
-    if (pair && pair.id) {
-      try {
-        setStatus('Switching to ' + pair.name + '…');
-        switchedDoc = await selectArea(pair.id, document);
-        var switchedName = extractArea(switchedDoc);
-        if (switchedName && !areaMatches({ area: switchedName }, pair.name)) {
-          pairNote = ' Could not switch to ' + pair.name + ' (still ' + switchedName + ').';
-        } else {
-          secondary = await loadAreaDays(days, null, pair.name, pair.name);
-        }
-      } catch (err) {
-        pairNote = ' Could not load ' + pair.name + ': ' + (err && err.message ? err.message : err);
-      }
-      try {
-        if (homeArea && homeArea.id) {
-          setStatus('Switching back to ' + homeArea.name + '…');
-          await selectArea(homeArea.id, switchedDoc || document);
-        }
-        if (currentNum) await fetchHtml(indexHref(currentNum));
-      } catch (restoreErr) {}
-    }
-
-    var okCount = 0;
-    var failCount = 0;
-    var uniqueDates = {};
-    function tally(extracted) {
-      if (!extracted) return;
-      if (extracted.ok) okCount++;
-      else failCount++;
-      if (extracted.date) uniqueDates[extracted.date] = true;
-    }
-    for (var i = 0; i < days.length; i++) {
-      var merged = secondary[i] ? mergeDays(primary[i], secondary[i]) : primary[i];
-      renderDay(pages, merged, days[i].label || days[i].date);
-      tally(merged);
-    }
-
-    var first = days[0].date || ('day-' + days[0].dayNum);
-    var last = days[days.length - 1].date || ('day-' + days[days.length - 1].dayNum);
-    var pp = extractPayPeriod(document);
-    document.title = 'WMT Worksheet' + (pp ? (' PP ' + pp) : '') + ' ' + String(first).replace(/\//g, '-') + ' to ' + String(last).replace(/\//g, '-');
-    var uniq = Object.keys(uniqueDates).length;
-    var warn = uniq && uniq < days.length
-      ? ' Warning: only ' + uniq + ' distinct dates came back. If this still looks like one day repeated, tell me and we will switch load method.'
-      : '';
-    var pairSummary = secondary.length
-      ? ((homeArea && homeArea.name ? homeArea.name : 'Area') + ' with OS merged into Sup, ' + days.length + ' pages. ')
-      : '';
-    setStatus(okCount
-      ? ('Ready — ' + pairSummary + okCount + ' sheet' + (okCount === 1 ? '' : 's') + ' loaded' + (failCount ? (', ' + failCount + ' incomplete') : '') + '. Click Print.' + pairNote + warn)
-      : ('Loaded pages, but no shift tables were found.' + pairNote));
-  } catch (err) {
-    alert('Pay period printer error: ' + (err && err.message ? err.message : err));
-    window.__wmtPPRunning = false;
+  function finishReady(status) {
+    saveSnapshot(pagesHtml(), status);
+    watchOverlay();
+    var opened = openStandaloneWindow(false);
+    setStatus(opened
+      ? (status + ' Preview is in the other window, so a WMT refresh will not close it.')
+      : (status + ' Allow pop-ups for wmtscheduler.faa.gov, then click Print — that window stays if WMT refreshes.'));
   }
+
+  function restoreSnapshot() {
+    var snap = loadSnapshot();
+    if (!snap) return false;
+    ensureUi();
+    $('wmt-pp-pages').innerHTML = snap.html;
+    if (snap.title) document.title = snap.title;
+    $('wmt-pp-summary').textContent = 'Restored last preview';
+    saveSnapshot(snap.html, snap.status);
+    watchOverlay();
+    var opened = openStandaloneWindow(false);
+    setStatus(opened
+      ? 'Restored the last preview after a WMT refresh. Print from the other window, or click Reload to fetch again.'
+      : 'Restored the last preview after a WMT refresh. Click Print to keep a copy in another window, or Reload to fetch again.');
+    return true;
+  }
+
+  async function collectAndRender() {
+    if (window.__wmtPPBusy) return;
+    window.__wmtPPBusy = true;
+    try {
+      ensureUi();
+      var days = collectDays();
+      var currentNum = currentDayNum();
+      var homeArea = currentAreaInfo(document);
+      var pair = findPairedArea(document);
+      $('wmt-pp-summary').textContent = days.length
+        ? ('Found ' + days.length + ' days' + (pair ? (' + ' + pair.name) : ''))
+        : 'No date strip found';
+
+      if (!days.length) {
+        setStatus('Could not find the pay-period date row (WorksheetViewDayStrip).');
+        return;
+      }
+
+      var pages = $('wmt-pp-pages');
+      pages.innerHTML = '';
+      var primary = await loadAreaDays(days, currentNum, homeArea && homeArea.name, homeArea && homeArea.name);
+      var secondary = [];
+      var pairNote = '';
+      var switchedDoc = null;
+
+      if (pair && pair.id) {
+        try {
+          setStatus('Switching to ' + pair.name + '…');
+          switchedDoc = await selectArea(pair.id, document);
+          var switchedName = extractArea(switchedDoc);
+          if (switchedName && !areaMatches({ area: switchedName }, pair.name)) {
+            pairNote = ' Could not switch to ' + pair.name + ' (still ' + switchedName + ').';
+          } else {
+            secondary = await loadAreaDays(days, null, pair.name, pair.name);
+          }
+        } catch (err) {
+          pairNote = ' Could not load ' + pair.name + ': ' + (err && err.message ? err.message : err);
+        }
+        try {
+          if (homeArea && homeArea.id) {
+            setStatus('Switching back to ' + homeArea.name + '…');
+            await selectArea(homeArea.id, switchedDoc || document);
+          }
+          if (currentNum) await fetchHtml(indexHref(currentNum));
+        } catch (restoreErr) {}
+      }
+
+      var okCount = 0;
+      var failCount = 0;
+      var uniqueDates = {};
+      function tally(extracted) {
+        if (!extracted) return;
+        if (extracted.ok) okCount++;
+        else failCount++;
+        if (extracted.date) uniqueDates[extracted.date] = true;
+      }
+      for (var i = 0; i < days.length; i++) {
+        var merged = secondary[i] ? mergeDays(primary[i], secondary[i]) : primary[i];
+        renderDay(pages, merged, days[i].label || days[i].date);
+        tally(merged);
+      }
+
+      var first = days[0].date || ('day-' + days[0].dayNum);
+      var last = days[days.length - 1].date || ('day-' + days[days.length - 1].dayNum);
+      var pp = extractPayPeriod(document);
+      document.title = 'WMT Worksheet' + (pp ? (' PP ' + pp) : '') + ' ' + String(first).replace(/\//g, '-') + ' to ' + String(last).replace(/\//g, '-');
+      var uniq = Object.keys(uniqueDates).length;
+      var warn = uniq && uniq < days.length
+        ? ' Warning: only ' + uniq + ' distinct dates came back. If this still looks like one day repeated, tell me and we will switch load method.'
+        : '';
+      var pairSummary = secondary.length
+        ? ((homeArea && homeArea.name ? homeArea.name : 'Area') + ' with OS merged into Sup, ' + days.length + ' pages. ')
+        : '';
+      var status = okCount
+        ? ('Ready — ' + pairSummary + okCount + ' sheet' + (okCount === 1 ? '' : 's') + ' loaded' + (failCount ? (', ' + failCount + ' incomplete') : '') + '.' + pairNote + warn)
+        : ('Loaded pages, but no shift tables were found.' + pairNote);
+      finishReady(status);
+    } catch (err) {
+      alert('Pay period printer error: ' + (err && err.message ? err.message : err));
+    } finally {
+      window.__wmtPPBusy = false;
+    }
+  }
+
+  if ($('tblEditGrid') && !$('lblSelectedDate')) {
+    alert('This looks like Edit Schedule.\n\nOpen Views → Work Sheet View, click any date in the pay period, then use this bookmark again.');
+    return;
+  }
+  if (!$('lblSelectedDate') && !$('ScheduledShifts') && !$('WorksheetViewDayStrip')) {
+    alert('Open WMT Worksheet View first (Views → Work Sheet View), then click this bookmark.');
+    return;
+  }
+
+  if (hasPages()) {
+    openStandaloneWindow(false);
+    return;
+  }
+  if (restoreSnapshot()) return;
+  collectAndRender();
 })();
