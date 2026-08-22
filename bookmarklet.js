@@ -1,5 +1,6 @@
 (async function () {
-  if (window.__wmtPPBusy) return;
+  if (window.__wmtPPBusy && document.getElementById('wmt-pp-root')) return;
+  window.__wmtPPBusy = false;
 
   var ROOT_ID = 'wmt-pp-root';
   var STYLE_ID = 'wmt-pp-style';
@@ -605,7 +606,25 @@
 
   function hasPages() {
     var pages = $('wmt-pp-pages');
-    return !!(pages && pages.children.length);
+    return !!(pages && pages.querySelector('.wmt-pp-day'));
+  }
+
+  function stopWatching() {
+    if (window.__wmtPPObserver) {
+      window.__wmtPPObserver.disconnect();
+      window.__wmtPPObserver = null;
+    }
+  }
+
+  function closeOverlay() {
+    window.__wmtPPClosed = true;
+    window.__wmtPPBusy = false;
+    window.__wmtPPKeepAlive = null;
+    stopWatching();
+    var root = $(ROOT_ID);
+    var style = $(STYLE_ID);
+    if (root) root.remove();
+    if (style) style.remove();
   }
 
   function saveSnapshot(html, status) {
@@ -682,12 +701,14 @@
     if (window.__wmtPPObserver) return;
     window.__wmtPPObserver = new MutationObserver(function () {
       var keep = window.__wmtPPKeepAlive;
-      if (!keep || !keep.html || $(ROOT_ID) || window.__wmtPPBusy || window.__wmtPPRestoring) return;
+      if (window.__wmtPPClosed || !keep || !keep.html || $(ROOT_ID) || window.__wmtPPBusy || window.__wmtPPRestoring) return;
       window.__wmtPPRestoring = true;
       try {
         ensureUi();
         $('wmt-pp-pages').innerHTML = keep.html;
+        if ($('wmt-pp-summary')) $('wmt-pp-summary').textContent = 'Preview';
         setStatus(keep.status || 'Preview restored after WMT updated the page.');
+        completeProgress();
       } finally {
         window.__wmtPPRestoring = false;
       }
@@ -722,11 +743,7 @@
       el.addEventListener('click', handler, true);
       el.onclick = handler;
     }
-    bind($('wmt-pp-close'), function () {
-      root.remove();
-      style.remove();
-      window.__wmtPPBusy = false;
-    });
+    bind($('wmt-pp-close'), closeOverlay);
     bind($('wmt-pp-print'), function () {
       openStandaloneWindow(true);
     });
@@ -738,7 +755,7 @@
     });
     document.addEventListener('keydown', function onEsc(ev) {
       if (ev.key === 'Escape' && $(ROOT_ID)) {
-        $('wmt-pp-close').click();
+        closeOverlay();
         document.removeEventListener('keydown', onEsc);
       }
     });
@@ -905,10 +922,11 @@
   function restoreSnapshot() {
     var snap = loadSnapshot();
     if (!snap) return false;
+    window.__wmtPPClosed = false;
     ensureUi();
     $('wmt-pp-pages').innerHTML = snap.html;
     if (snap.title) document.title = snap.title;
-    $('wmt-pp-summary').textContent = 'Restored last preview';
+    if ($('wmt-pp-summary')) $('wmt-pp-summary').textContent = 'Restored last preview';
     saveSnapshot(snap.html, snap.status);
     completeProgress();
     watchOverlay();
@@ -921,6 +939,7 @@
 
   async function collectAndRender() {
     if (window.__wmtPPBusy) return;
+    window.__wmtPPClosed = false;
     window.__wmtPPBusy = true;
     try {
       ensureUi();
