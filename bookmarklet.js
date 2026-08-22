@@ -611,8 +611,7 @@
       viewerCss() +
       '</style></head><body>' +
       '<div class="wmt-pp-bar"><div><b>WMT pay period printer</b><br><span id="wmt-pp-summary">Starting…</span></div>' +
-      '<div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button">Print</button>' +
-      '<button class="wmt-pp-btn close" id="wmt-pp-close" type="button">Close</button></div></div>' +
+      '<div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button">Print</button></div></div>' +
       '<div class="wmt-pp-load" id="wmt-pp-load"><div class="wmt-pp-status-row"><span class="wmt-pp-spin"></span>' +
       '<span class="wmt-pp-status" id="wmt-pp-status">Looking for pay-period dates…</span>' +
       '<b class="wmt-pp-progress-pct" id="wmt-pp-progress-pct">0%</b></div>' +
@@ -623,9 +622,7 @@
     );
     viewDoc.close();
     var printBtn = $v('wmt-pp-print');
-    var closeBtn = $v('wmt-pp-close');
     if (printBtn) printBtn.onclick = printViewer;
-    if (closeBtn) closeBtn.onclick = function () { viewWin.close(); };
     try { viewWin.focus(); } catch (e3) {}
     return true;
   }
