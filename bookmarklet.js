@@ -6,6 +6,7 @@
   var SNAPSHOT_KEY = 'wmtPPSnapshot';
   var INDEX_RE = /\/Views\/WorksheetView\/Index\/(\d+)/i;
   var REQ_HEADERS = ['CPC', 'TYPE', 'FROM', 'TO', 'WITH', 'STATUS', 'INI', 'DATE'];
+  var progressState = { done: 0, total: 1 };
 
   function $(id, root) {
     return (root || document).getElementById(id);
@@ -490,7 +491,7 @@
     var results = [];
     for (var i = 0; i < days.length; i++) {
       var day = days[i];
-      setStatus((labelPrefix ? labelPrefix + ' — ' : '') + 'Loading ' + (i + 1) + ' of ' + days.length + ' — ' + (day.label || ('Index/' + day.dayNum)));
+      tickProgress((labelPrefix ? labelPrefix + ' — ' : '') + 'Loading ' + (i + 1) + ' of ' + days.length + ' — ' + (day.label || ('Index/' + day.dayNum)));
       try {
         var extracted = await loadDay(day, liveDayNum);
         if (expectedArea && extracted.ok && !areaMatches(extracted, expectedArea)) {
@@ -525,7 +526,19 @@
       '#' + ROOT_ID + ' .wmt-pp-btn{border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer}',
       '#' + ROOT_ID + ' .wmt-pp-btn.print{background:#1e3a5f !important;color:#fff !important;border:1px solid #1e3a5f !important}',
       '#' + ROOT_ID + ' .wmt-pp-btn.close{background:#fff !important;color:#111 !important;border:1px solid #333 !important}',
-      '#' + ROOT_ID + ' .wmt-pp-status{padding:10px 16px;background:#fff3cd;color:#5c4800;font-size:13px}',
+      '#' + ROOT_ID + ' .wmt-pp-load{padding:10px 16px 12px;background:#fff3cd;color:#5c4800;border-bottom:1px solid #e0d2a0}',
+      '#' + ROOT_ID + ' .wmt-pp-status-row{display:flex;align-items:center;gap:10px}',
+      '#' + ROOT_ID + ' .wmt-pp-status{flex:1;font-size:13px;color:#5c4800}',
+      '#' + ROOT_ID + ' .wmt-pp-progress-pct{font-size:13px;font-weight:700;color:#1e3a5f;min-width:3.2em;text-align:right}',
+      '#' + ROOT_ID + ' .wmt-pp-spin{width:16px;height:16px;border:2px solid #d8c48a;border-top-color:#1e3a5f;border-radius:50%;animation:wmt-pp-spin .7s linear infinite;flex:0 0 auto}',
+      '#' + ROOT_ID + ' .wmt-pp-spin-lg{width:36px;height:36px;border-width:3px}',
+      '#' + ROOT_ID + ' .wmt-pp-track{height:10px;margin-top:8px;background:#efe6c8;border:1px solid #c9b98a;border-radius:999px;overflow:hidden}',
+      '#' + ROOT_ID + ' .wmt-pp-fill{height:100%;width:0;border-radius:999px;background:repeating-linear-gradient(-45deg,#1e3a5f 0,#1e3a5f 8px,#2a507f 8px,#2a507f 16px);background-size:28px 28px;animation:wmt-pp-stripe .45s linear infinite;transition:width .28s ease}',
+      '#' + ROOT_ID + ' .wmt-pp-load.done .wmt-pp-spin{display:none}',
+      '#' + ROOT_ID + ' .wmt-pp-load.done .wmt-pp-fill{animation:none;background:#1e3a5f;width:100%}',
+      '#' + ROOT_ID + ' .wmt-pp-wait{min-height:42vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#1e3a5f;font-size:16px;font-weight:700}',
+      '@keyframes wmt-pp-spin{to{transform:rotate(360deg)}}',
+      '@keyframes wmt-pp-stripe{to{background-position:28px 0}}',
       '#' + ROOT_ID + ' .wmt-pp-pages{padding:16px 18px 36px;max-width:1100px;margin:0 auto}',
       '#' + ROOT_ID + ' .wmt-pp-day{background:#fff;border:1px solid #cfc8b8;padding:14px 16px 18px;margin:0 0 18px}',
       '#' + ROOT_ID + ' .wmt-pp-day h1{font-size:20px;margin:0 0 4px;color:#111}',
@@ -695,7 +708,7 @@
 
     var root = document.createElement('div');
     root.id = ROOT_ID;
-    root.innerHTML = '<div class="wmt-pp-bar" style="background:#f7f4ec;color:#111"><div><b style="color:#111">WMT pay period printer</b><br><span id="wmt-pp-summary" style="color:#111">Starting…</span></div><div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button" style="background:#1e3a5f;color:#fff;border:1px solid #1e3a5f">Print</button><button class="wmt-pp-btn close" id="wmt-pp-reload" type="button" style="background:#fff;color:#111;border:1px solid #333">Reload</button><button class="wmt-pp-btn close" id="wmt-pp-close" type="button" style="background:#fff;color:#111;border:1px solid #333">Close</button></div></div><div class="wmt-pp-status" id="wmt-pp-status" style="color:#5c4800">Looking for pay-period dates…</div><div class="wmt-pp-pages" id="wmt-pp-pages"></div>';
+    root.innerHTML = '<div class="wmt-pp-bar" style="background:#f7f4ec;color:#111"><div><b style="color:#111">WMT pay period printer</b><br><span id="wmt-pp-summary" style="color:#111">Starting…</span></div><div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button" style="background:#1e3a5f;color:#fff;border:1px solid #1e3a5f">Print</button><button class="wmt-pp-btn close" id="wmt-pp-reload" type="button" style="background:#fff;color:#111;border:1px solid #333">Reload</button><button class="wmt-pp-btn close" id="wmt-pp-close" type="button" style="background:#fff;color:#111;border:1px solid #333">Close</button></div></div><div class="wmt-pp-load" id="wmt-pp-load"><div class="wmt-pp-status-row"><span class="wmt-pp-spin" aria-hidden="true"></span><span class="wmt-pp-status" id="wmt-pp-status">Looking for pay-period dates…</span><b class="wmt-pp-progress-pct" id="wmt-pp-progress-pct">0%</b></div><div class="wmt-pp-track"><div class="wmt-pp-fill" id="wmt-pp-progress-fill"></div></div></div><div class="wmt-pp-pages" id="wmt-pp-pages"><div class="wmt-pp-wait"><div class="wmt-pp-spin wmt-pp-spin-lg"></div><div>Loading worksheet days…</div></div></div>';
     document.body.appendChild(root);
 
     function bind(el, fn) {
@@ -735,6 +748,35 @@
   function setStatus(msg) {
     var el = $('wmt-pp-status');
     if (el) el.textContent = msg;
+  }
+
+  function beginProgress(total) {
+    progressState.done = 0;
+    progressState.total = total > 0 ? total : 1;
+    var load = $('wmt-pp-load');
+    if (load) load.classList.remove('done');
+    renderProgress();
+  }
+
+  function renderProgress() {
+    var pct = Math.max(0, Math.min(100, Math.round((progressState.done / progressState.total) * 100)));
+    var fill = $('wmt-pp-progress-fill');
+    var label = $('wmt-pp-progress-pct');
+    if (fill) fill.style.width = pct + '%';
+    if (label) label.textContent = pct + '%';
+  }
+
+  function tickProgress(msg) {
+    if (progressState.done < progressState.total) progressState.done += 1;
+    renderProgress();
+    if (msg) setStatus(msg);
+  }
+
+  function completeProgress() {
+    progressState.done = progressState.total;
+    renderProgress();
+    var load = $('wmt-pp-load');
+    if (load) load.classList.add('done');
   }
 
   function addHeading(parent, text) {
@@ -868,6 +910,7 @@
     if (snap.title) document.title = snap.title;
     $('wmt-pp-summary').textContent = 'Restored last preview';
     saveSnapshot(snap.html, snap.status);
+    completeProgress();
     watchOverlay();
     var opened = openStandaloneWindow(false);
     setStatus(opened
@@ -894,8 +937,8 @@
         return;
       }
 
+      beginProgress(days.length + (pair && pair.id ? days.length + 2 : 0));
       var pages = $('wmt-pp-pages');
-      pages.innerHTML = '';
       var primary = await loadAreaDays(days, currentNum, homeArea && homeArea.name, homeArea && homeArea.name);
       var secondary = [];
       var pairNote = '';
@@ -903,7 +946,7 @@
 
       if (pair && pair.id) {
         try {
-          setStatus('Switching to ' + pair.name + '…');
+          tickProgress('Switching to ' + pair.name + '…');
           switchedDoc = await selectArea(pair.id, document);
           var switchedName = extractArea(switchedDoc);
           if (switchedName && !areaMatches({ area: switchedName }, pair.name)) {
@@ -916,7 +959,7 @@
         }
         try {
           if (homeArea && homeArea.id) {
-            setStatus('Switching back to ' + homeArea.name + '…');
+            tickProgress('Switching back to ' + homeArea.name + '…');
             await selectArea(homeArea.id, switchedDoc || document);
           }
           if (currentNum) await fetchHtml(indexHref(currentNum));
@@ -932,11 +975,13 @@
         else failCount++;
         if (extracted.date) uniqueDates[extracted.date] = true;
       }
+      pages.innerHTML = '';
       for (var i = 0; i < days.length; i++) {
         var merged = secondary[i] ? mergeDays(primary[i], secondary[i]) : primary[i];
         renderDay(pages, merged, days[i].label || days[i].date);
         tally(merged);
       }
+      completeProgress();
 
       var first = days[0].date || ('day-' + days[0].dayNum);
       var last = days[days.length - 1].date || ('day-' + days[days.length - 1].dayNum);
