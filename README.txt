@@ -12,20 +12,20 @@ QUICK START
 1. Double-click "Start Worksheet Printer.bat" (or open index.html).
 2. Drag "Print Pay Period" onto your bookmarks bar.
 3. In WMT: Views → Work Sheet View → click any date in the pay period.
-4. Click the bookmark, wait for every day (and OS, if any) to load.
-5. Read the overlay on Worksheet View. Click Print for a printout or PDF.
+4. Click the bookmark. A new tab opens and loads every day (and OS, if any).
+5. Read that tab. Click Print for a printout or PDF.
 
 PRINT
-Click Print on the overlay. Use the browser print dialog to send it to a
-printer, or choose Save as PDF there if you want a file.
+Click Print in the pay period tab. Use the browser print dialog to send it
+to a printer, or choose Save as PDF there if you want a file.
 
 NOTES
 - Stay on the WMT tab while days are loading.
 - Use Chrome or Edge. The bookmark only works while you are logged into WMT.
 - This reads Worksheet View. It does not change the schedule.
 - After an update, delete the old bookmark and drag Print Pay Period onto the bar again.
-- If Print is blocked, allow pop-ups for wmtscheduler.faa.gov and click Print again.
-- If WMT refreshes the overlay, click the bookmark again to restore the last preview.
+- Allow pop-ups for wmtscheduler.faa.gov so the pay period tab can open.
+- Each bookmark click opens a new tab and loads a fresh copy. Nothing is restored.
 
 FILES
   index.html                   Installer / bookmark page

@@ -1,16 +1,25 @@
 (async function () {
-  if (window.__wmtPPBusy && document.getElementById('wmt-pp-root')) return;
-  window.__wmtPPBusy = false;
-
-  var ROOT_ID = 'wmt-pp-root';
-  var STYLE_ID = 'wmt-pp-style';
-  var SNAPSHOT_KEY = 'wmtPPSnapshot';
   var INDEX_RE = /\/Views\/WorksheetView\/Index\/(\d+)/i;
   var REQ_HEADERS = ['CPC', 'TYPE', 'FROM', 'TO', 'WITH', 'STATUS', 'INI', 'DATE'];
   var progressState = { done: 0, total: 1 };
+  var viewWin = null;
+  var viewDoc = null;
+  var myRun = (window.__wmtPPRun = (window.__wmtPPRun || 0) + 1);
 
   function $(id, root) {
     return (root || document).getElementById(id);
+  }
+
+  function $v(id) {
+    try { return viewDoc && viewDoc.getElementById(id); } catch (e0) { return null; }
+  }
+
+  function create(tag) {
+    return viewDoc.createElement(tag);
+  }
+
+  function stillThisRun() {
+    return window.__wmtPPRun === myRun;
   }
 
   function pad(n) {
@@ -491,6 +500,7 @@
   async function loadAreaDays(days, liveDayNum, expectedArea, labelPrefix) {
     var results = [];
     for (var i = 0; i < days.length; i++) {
+      if (!stillThisRun()) throw new Error('superseded');
       var day = days[i];
       tickProgress((labelPrefix ? labelPrefix + ' — ' : '') + 'Loading ' + (i + 1) + ' of ' + days.length + ' — ' + (day.label || ('Index/' + day.dayNum)));
       try {
@@ -515,68 +525,47 @@
     return results;
   }
 
-  function cssText() {
+  function viewerCss() {
     return [
-      '#' + ROOT_ID + '{position:fixed;inset:0;z-index:2147483646;background:#f4f1ea;color:#111;overflow:auto;font-family:Arial,Helvetica,sans-serif}',
-      '#' + ROOT_ID + ' *{box-sizing:border-box}',
-      '#' + ROOT_ID + ' .wmt-pp-bar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;background:#f7f4ec !important;color:#111 !important;border-bottom:2px solid #1e3a5f;box-shadow:0 2px 8px rgba(0,0,0,.12)}',
-      '#' + ROOT_ID + ' .wmt-pp-bar b,#' + ROOT_ID + ' .wmt-pp-bar span,#' + ROOT_ID + ' .wmt-pp-bar div{color:#111 !important}',
-      '#' + ROOT_ID + ' .wmt-pp-bar b{font-size:15px;font-weight:700}',
-      '#' + ROOT_ID + ' .wmt-pp-bar span{font-size:13px}',
-      '#' + ROOT_ID + ' .wmt-pp-actions{display:flex;gap:8px}',
-      '#' + ROOT_ID + ' .wmt-pp-btn{border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer}',
-      '#' + ROOT_ID + ' .wmt-pp-btn.print{background:#1e3a5f !important;color:#fff !important;border:1px solid #1e3a5f !important}',
-      '#' + ROOT_ID + ' .wmt-pp-btn.close{background:#fff !important;color:#111 !important;border:1px solid #333 !important}',
-      '#' + ROOT_ID + ' .wmt-pp-load{padding:10px 16px 12px;background:#fff3cd;color:#5c4800;border-bottom:1px solid #e0d2a0}',
-      '#' + ROOT_ID + ' .wmt-pp-status-row{display:flex;align-items:center;gap:10px}',
-      '#' + ROOT_ID + ' .wmt-pp-status{flex:1;font-size:13px;color:#5c4800}',
-      '#' + ROOT_ID + ' .wmt-pp-progress-pct{font-size:13px;font-weight:700;color:#1e3a5f;min-width:3.2em;text-align:right}',
-      '#' + ROOT_ID + ' .wmt-pp-spin{width:16px;height:16px;border:2px solid #d8c48a;border-top-color:#1e3a5f;border-radius:50%;animation:wmt-pp-spin .7s linear infinite;flex:0 0 auto}',
-      '#' + ROOT_ID + ' .wmt-pp-spin-lg{width:36px;height:36px;border-width:3px}',
-      '#' + ROOT_ID + ' .wmt-pp-track{height:10px;margin-top:8px;background:#efe6c8;border:1px solid #c9b98a;border-radius:999px;overflow:hidden}',
-      '#' + ROOT_ID + ' .wmt-pp-fill{height:100%;width:0;border-radius:999px;background:repeating-linear-gradient(-45deg,#1e3a5f 0,#1e3a5f 8px,#2a507f 8px,#2a507f 16px);background-size:28px 28px;animation:wmt-pp-stripe .45s linear infinite;transition:width .28s ease}',
-      '#' + ROOT_ID + ' .wmt-pp-load.done .wmt-pp-spin{display:none}',
-      '#' + ROOT_ID + ' .wmt-pp-load.done .wmt-pp-fill{animation:none;background:#1e3a5f;width:100%}',
-      '#' + ROOT_ID + ' .wmt-pp-wait{min-height:42vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#1e3a5f;font-size:16px;font-weight:700}',
+      'html,body{margin:0;background:#f4f1ea;color:#111;font-family:Arial,Helvetica,sans-serif}',
+      '*{box-sizing:border-box}',
+      '.wmt-pp-bar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;background:#f7f4ec;color:#111;border-bottom:2px solid #1e3a5f;box-shadow:0 2px 8px rgba(0,0,0,.12)}',
+      '.wmt-pp-bar b{font-size:15px;font-weight:700;color:#111}',
+      '.wmt-pp-bar span{font-size:13px;color:#111}',
+      '.wmt-pp-actions{display:flex;gap:8px}',
+      '.wmt-pp-btn{border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer}',
+      '.wmt-pp-btn.print{background:#1e3a5f;color:#fff;border:1px solid #1e3a5f}',
+      '.wmt-pp-btn.close{background:#fff;color:#111;border:1px solid #333}',
+      '.wmt-pp-load{padding:10px 16px 12px;background:#fff3cd;color:#5c4800;border-bottom:1px solid #e0d2a0}',
+      '.wmt-pp-status-row{display:flex;align-items:center;gap:10px}',
+      '.wmt-pp-status{flex:1;font-size:13px;color:#5c4800}',
+      '.wmt-pp-progress-pct{font-size:13px;font-weight:700;color:#1e3a5f;min-width:3.2em;text-align:right}',
+      '.wmt-pp-spin{width:16px;height:16px;border:2px solid #d8c48a;border-top-color:#1e3a5f;border-radius:50%;animation:wmt-pp-spin .7s linear infinite;flex:0 0 auto}',
+      '.wmt-pp-spin-lg{width:36px;height:36px;border-width:3px}',
+      '.wmt-pp-track{height:10px;margin-top:8px;background:#efe6c8;border:1px solid #c9b98a;border-radius:999px;overflow:hidden}',
+      '.wmt-pp-fill{height:100%;width:0;border-radius:999px;background:repeating-linear-gradient(-45deg,#1e3a5f 0,#1e3a5f 8px,#2a507f 8px,#2a507f 16px);background-size:28px 28px;animation:wmt-pp-stripe .45s linear infinite;transition:width .28s ease}',
+      '.wmt-pp-load.done .wmt-pp-spin{display:none}',
+      '.wmt-pp-load.done .wmt-pp-fill{animation:none;background:#1e3a5f;width:100%}',
+      '.wmt-pp-wait{min-height:42vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#1e3a5f;font-size:16px;font-weight:700}',
       '@keyframes wmt-pp-spin{to{transform:rotate(360deg)}}',
       '@keyframes wmt-pp-stripe{to{background-position:28px 0}}',
-      '#' + ROOT_ID + ' .wmt-pp-pages{padding:16px 18px 36px;max-width:1100px;margin:0 auto}',
-      '#' + ROOT_ID + ' .wmt-pp-day{background:#fff;border:1px solid #cfc8b8;padding:14px 16px 18px;margin:0 0 18px}',
-      '#' + ROOT_ID + ' .wmt-pp-day h1{font-size:20px;margin:0 0 4px;color:#111}',
-      '#' + ROOT_ID + ' .wmt-pp-day .meta{font-size:13px;color:#333;margin-bottom:10px}',
-      '#' + ROOT_ID + ' .wmt-pp-day h2{font-size:13px;margin:10px 0 4px;border-bottom:2px solid #1e3a5f;padding-bottom:2px;color:#111}',
-      '#' + ROOT_ID + ' .wmt-pp-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;align-items:start}',
-      '#' + ROOT_ID + ' .wmt-pp-day table{border-collapse:collapse;width:100%;font-size:12px;margin:0 0 8px;color:#111}',
-      '#' + ROOT_ID + ' .wmt-pp-day td,#' + ROOT_ID + ' .wmt-pp-day th{border:1px solid #444;padding:4px 7px;vertical-align:middle;text-align:left;color:#111;line-height:1.35}',
-      '#' + ROOT_ID + ' .wmt-pp-day th{background:#1e3a5f;color:#fff !important;font-weight:700}',
-      '#' + ROOT_ID + ' .wmt-pp-day tbody tr:nth-child(even) td{background:#f3f6fa}',
-      '#' + ROOT_ID + ' .wmt-pp-day td:first-child{font-weight:700;white-space:nowrap}',
-      '#' + ROOT_ID + ' .wmt-pp-line{font-size:12px;margin:6px 0 4px;line-height:1.4}',
-      '#' + ROOT_ID + ' .wmt-pp-requests h2{font-size:12px;margin:8px 0 3px}',
-      '#' + ROOT_ID + ' .wmt-pp-requests table{font-size:10px}',
-      '#' + ROOT_ID + ' .wmt-pp-requests td,#' + ROOT_ID + ' .wmt-pp-requests th{padding:2px 4px;line-height:1.2;font-weight:400;white-space:normal}'
+      '.wmt-pp-pages{padding:16px 18px 36px;max-width:1100px;margin:0 auto}',
+      '.wmt-pp-day{background:#fff;border:1px solid #cfc8b8;padding:14px 16px 18px;margin:0 0 18px}',
+      '.wmt-pp-day h1{font-size:20px;margin:0 0 4px;color:#111}',
+      '.wmt-pp-day .meta{font-size:13px;color:#333;margin-bottom:10px}',
+      '.wmt-pp-day h2{font-size:13px;margin:10px 0 4px;border-bottom:2px solid #1e3a5f;padding-bottom:2px;color:#111}',
+      '.wmt-pp-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;align-items:start}',
+      '.wmt-pp-day table{border-collapse:collapse;width:100%;font-size:12px;margin:0 0 8px;color:#111}',
+      '.wmt-pp-day td,.wmt-pp-day th{border:1px solid #444;padding:4px 7px;vertical-align:middle;text-align:left;color:#111;line-height:1.35}',
+      '.wmt-pp-day th{background:#1e3a5f;color:#fff;font-weight:700}',
+      '.wmt-pp-day tbody tr:nth-child(even) td{background:#f3f6fa}',
+      '.wmt-pp-day td:first-child{font-weight:700;white-space:nowrap}',
+      '.wmt-pp-line{font-size:12px;margin:6px 0 4px;line-height:1.4}',
+      '.wmt-pp-requests h2{font-size:12px;margin:8px 0 3px}',
+      '.wmt-pp-requests table{font-size:10px}',
+      '.wmt-pp-requests td,.wmt-pp-requests th{padding:2px 4px;line-height:1.2;font-weight:400;white-space:normal}',
+      '@media print{html,body{background:#fff}.wmt-pp-bar,.wmt-pp-load,.wmt-pp-wait{display:none!important}.wmt-pp-pages{padding:0;max-width:none}.wmt-pp-day{break-after:page;page-break-after:always;padding:0;border:none;margin:0 0 0}.wmt-pp-day:last-child{break-after:auto;page-break-after:auto}h1{font-size:16pt;margin:0 0 2px}.meta{font-size:10pt;margin:0 0 8px}h2{font-size:11pt;margin:8px 0 3px}.wmt-pp-grid{gap:10px}table{font-size:9.5pt}td,th{padding:3px 6px}.wmt-pp-requests h2{font-size:9pt}.wmt-pp-requests table{font-size:7.5pt}.wmt-pp-requests td,.wmt-pp-requests th{padding:1px 3px}@page{size:letter portrait;margin:.4in}}'
     ].join('');
-  }
-
-  function printDocCss() {
-    return 'html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif}' +
-      '.wmt-pp-day{break-after:page;page-break-after:always;padding:0;color:#111}' +
-      '.wmt-pp-day:last-child{break-after:auto;page-break-after:auto}' +
-      'h1{font-size:16pt;margin:0 0 2px;color:#111}' +
-      '.meta{font-size:10pt;color:#333;margin:0 0 8px}' +
-      'h2{font-size:11pt;margin:8px 0 3px;border-bottom:2px solid #1e3a5f;padding-bottom:2px;color:#111}' +
-      '.wmt-pp-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:10px;align-items:start}' +
-      'table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:0 0 6px;color:#111}' +
-      'td,th{border:1px solid #333;padding:3px 6px;vertical-align:middle;text-align:left;color:#111;line-height:1.3}' +
-      'th{background:#1e3a5f;color:#fff;font-weight:700}' +
-      'tbody tr:nth-child(even) td{background:#f3f6fa}' +
-      'td:first-child{font-weight:700;white-space:nowrap}' +
-      '.wmt-pp-line{font-size:10pt;margin:6px 0 3px;line-height:1.35}' +
-      '.wmt-pp-empty{color:#444;font-style:italic;font-size:10pt}' +
-      '.wmt-pp-requests h2{font-size:9pt;margin:4px 0 2px}' +
-      '.wmt-pp-requests table{font-size:7.5pt}' +
-      '.wmt-pp-requests td,.wmt-pp-requests th{padding:1px 3px;line-height:1.15;font-weight:400;white-space:normal}' +
-      '@page{size:letter portrait;margin:.4in}';
   }
 
   function fitPrintDays(doc) {
@@ -599,163 +588,65 @@
     }
   }
 
-  function pagesHtml() {
-    var pages = $('wmt-pp-pages');
-    return pages ? pages.innerHTML : '';
-  }
-
-  function hasPages() {
-    var pages = $('wmt-pp-pages');
-    return !!(pages && pages.querySelector('.wmt-pp-day'));
-  }
-
-  function stopWatching() {
-    if (window.__wmtPPObserver) {
-      window.__wmtPPObserver.disconnect();
-      window.__wmtPPObserver = null;
-    }
-  }
-
-  function closeOverlay() {
-    window.__wmtPPClosed = true;
-    window.__wmtPPBusy = false;
-    window.__wmtPPKeepAlive = null;
-    stopWatching();
-    var root = $(ROOT_ID);
-    var style = $(STYLE_ID);
-    if (root) root.remove();
-    if (style) style.remove();
-  }
-
-  function saveSnapshot(html, status) {
-    try {
-      sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
-        v: 1,
-        at: Date.now(),
-        title: document.title || '',
-        status: status || '',
-        html: html
-      }));
-    } catch (e0) {}
-    window.__wmtPPKeepAlive = { html: html, status: status || '' };
-  }
-
-  function loadSnapshot() {
-    try {
-      var data = JSON.parse(sessionStorage.getItem(SNAPSHOT_KEY) || 'null');
-      if (!data || data.v !== 1 || !data.html) return null;
-      if (Date.now() - data.at > 6 * 60 * 60 * 1000) return null;
-      return data;
-    } catch (e1) {
-      return null;
-    }
-  }
-
-  function openPrintWindow() {
-    if (!hasPages()) {
+  function printViewer() {
+    if (!viewDoc || !viewDoc.querySelector('.wmt-pp-day')) {
       alert('Nothing to print yet. Wait for the days to finish loading, then click Print.');
       return;
     }
-    var title = (document.title || 'WMT Worksheet').replace(/[<>]/g, '');
-    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title +
-      '</title><style>' + printDocCss() + '</style></head><body>' + pagesHtml() + '</body></html>';
+    try { fitPrintDays(viewDoc); } catch (e1) {}
+    try { viewWin.print(); } catch (e2) {}
+  }
+
+  function openViewerTab() {
     var w = window.open('', '_blank');
     if (!w) {
-      alert('The browser blocked the print window.\n\nAllow pop-ups for wmtscheduler.faa.gov, then click Print again.');
-      return;
+      alert('Allow pop-ups for wmtscheduler.faa.gov so the pay period can open in its own tab.');
+      return false;
     }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(function () {
-      try { fitPrintDays(w.document); } catch (e0) {}
-      setTimeout(function () {
-        try { w.print(); } catch (e1) {}
-      }, 150);
-    }, 350);
-  }
-
-  function watchOverlay() {
-    if (window.__wmtPPObserver) return;
-    window.__wmtPPObserver = new MutationObserver(function () {
-      var keep = window.__wmtPPKeepAlive;
-      if (window.__wmtPPClosed || !keep || !keep.html || $(ROOT_ID) || window.__wmtPPBusy || window.__wmtPPRestoring) return;
-      window.__wmtPPRestoring = true;
-      try {
-        ensureUi();
-        $('wmt-pp-pages').innerHTML = keep.html;
-        if ($('wmt-pp-summary')) $('wmt-pp-summary').textContent = 'Preview';
-        setStatus(keep.status || 'Preview restored after WMT updated the page.');
-        completeProgress();
-      } finally {
-        window.__wmtPPRestoring = false;
-      }
-    });
-    window.__wmtPPObserver.observe(document.documentElement, { childList: true, subtree: true });
-  }
-
-  function ensureUi() {
-    var old = $(ROOT_ID);
-    if (old) old.remove();
-    var oldStyle = $(STYLE_ID);
-    if (oldStyle) oldStyle.remove();
-
-    var style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = cssText();
-    document.documentElement.appendChild(style);
-
-    var root = document.createElement('div');
-    root.id = ROOT_ID;
-    root.innerHTML = '<div class="wmt-pp-bar" style="background:#f7f4ec;color:#111"><div><b style="color:#111">WMT pay period printer</b><br><span id="wmt-pp-summary" style="color:#111">Starting…</span></div><div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button" style="background:#1e3a5f;color:#fff;border:1px solid #1e3a5f">Print</button><button class="wmt-pp-btn close" id="wmt-pp-reload" type="button" style="background:#fff;color:#111;border:1px solid #333">Reload</button><button class="wmt-pp-btn close" id="wmt-pp-close" type="button" style="background:#fff;color:#111;border:1px solid #333">Close</button></div></div><div class="wmt-pp-load" id="wmt-pp-load"><div class="wmt-pp-status-row"><span class="wmt-pp-spin" aria-hidden="true"></span><span class="wmt-pp-status" id="wmt-pp-status">Looking for pay-period dates…</span><b class="wmt-pp-progress-pct" id="wmt-pp-progress-pct">0%</b></div><div class="wmt-pp-track"><div class="wmt-pp-fill" id="wmt-pp-progress-fill"></div></div></div><div class="wmt-pp-pages" id="wmt-pp-pages"><div class="wmt-pp-wait"><div class="wmt-pp-spin wmt-pp-spin-lg"></div><div>Loading worksheet days…</div></div></div>';
-    document.body.appendChild(root);
-
-    function bind(el, fn) {
-      if (!el) return;
-      var handler = function (ev) {
-        if (ev.preventDefault) ev.preventDefault();
-        if (ev.stopPropagation) ev.stopPropagation();
-        if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-        fn();
-      };
-      el.addEventListener('click', handler, true);
-      el.onclick = handler;
-    }
-    bind($('wmt-pp-close'), closeOverlay);
-    bind($('wmt-pp-print'), openPrintWindow);
-    bind($('wmt-pp-reload'), function () {
-      if (window.__wmtPPBusy) return;
-      try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch (e2) {}
-      window.__wmtPPKeepAlive = null;
-      collectAndRender();
-    });
-    document.addEventListener('keydown', function onEsc(ev) {
-      if (ev.key === 'Escape' && $(ROOT_ID)) {
-        closeOverlay();
-        document.removeEventListener('keydown', onEsc);
-      }
-    });
-    return root;
+    viewWin = w;
+    viewDoc = w.document;
+    viewDoc.open();
+    viewDoc.write(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>WMT pay period printer</title><style>' +
+      viewerCss() +
+      '</style></head><body>' +
+      '<div class="wmt-pp-bar"><div><b>WMT pay period printer</b><br><span id="wmt-pp-summary">Starting…</span></div>' +
+      '<div class="wmt-pp-actions"><button class="wmt-pp-btn print" id="wmt-pp-print" type="button">Print</button>' +
+      '<button class="wmt-pp-btn close" id="wmt-pp-close" type="button">Close</button></div></div>' +
+      '<div class="wmt-pp-load" id="wmt-pp-load"><div class="wmt-pp-status-row"><span class="wmt-pp-spin"></span>' +
+      '<span class="wmt-pp-status" id="wmt-pp-status">Looking for pay-period dates…</span>' +
+      '<b class="wmt-pp-progress-pct" id="wmt-pp-progress-pct">0%</b></div>' +
+      '<div class="wmt-pp-track"><div class="wmt-pp-fill" id="wmt-pp-progress-fill"></div></div></div>' +
+      '<div class="wmt-pp-pages" id="wmt-pp-pages"><div class="wmt-pp-wait"><div class="wmt-pp-spin wmt-pp-spin-lg"></div>' +
+      '<div>Loading worksheet days…</div></div></div>' +
+      '</body></html>'
+    );
+    viewDoc.close();
+    var printBtn = $v('wmt-pp-print');
+    var closeBtn = $v('wmt-pp-close');
+    if (printBtn) printBtn.onclick = printViewer;
+    if (closeBtn) closeBtn.onclick = function () { viewWin.close(); };
+    try { viewWin.focus(); } catch (e3) {}
+    return true;
   }
 
   function setStatus(msg) {
-    var el = $('wmt-pp-status');
+    var el = $v('wmt-pp-status');
     if (el) el.textContent = msg;
   }
 
   function beginProgress(total) {
     progressState.done = 0;
     progressState.total = total > 0 ? total : 1;
-    var load = $('wmt-pp-load');
+    var load = $v('wmt-pp-load');
     if (load) load.classList.remove('done');
     renderProgress();
   }
 
   function renderProgress() {
     var pct = Math.max(0, Math.min(100, Math.round((progressState.done / progressState.total) * 100)));
-    var fill = $('wmt-pp-progress-fill');
-    var label = $('wmt-pp-progress-pct');
+    var fill = $v('wmt-pp-progress-fill');
+    var label = $v('wmt-pp-progress-pct');
     if (fill) fill.style.width = pct + '%';
     if (label) label.textContent = pct + '%';
   }
@@ -769,40 +660,40 @@
   function completeProgress() {
     progressState.done = progressState.total;
     renderProgress();
-    var load = $('wmt-pp-load');
+    var load = $v('wmt-pp-load');
     if (load) load.classList.add('done');
   }
 
   function addHeading(parent, text) {
-    var h = document.createElement('h2');
+    var h = create('h2');
     h.textContent = text;
     parent.appendChild(h);
   }
 
   function addLine(parent, label, text) {
     if (!text) return;
-    var d = document.createElement('div');
+    var d = create('div');
     d.className = 'wmt-pp-line';
     d.textContent = label + ': ' + text;
     parent.appendChild(d);
   }
 
   function buildTable(headers, rows) {
-    var table = document.createElement('table');
-    var thead = document.createElement('thead');
-    var hr = document.createElement('tr');
+    var table = create('table');
+    var thead = create('thead');
+    var hr = create('tr');
     headers.forEach(function (h) {
-      var th = document.createElement('th');
+      var th = create('th');
       th.textContent = h;
       hr.appendChild(th);
     });
     thead.appendChild(hr);
     table.appendChild(thead);
-    var tb = document.createElement('tbody');
+    var tb = create('tbody');
     (rows || []).forEach(function (row) {
-      var tr = document.createElement('tr');
+      var tr = create('tr');
       row.forEach(function (cell) {
-        var td = document.createElement('td');
+        var td = create('td');
         if (cell && typeof cell === 'object') {
           td.textContent = cell.text || '';
           if (cell.bg) td.style.backgroundColor = cell.bg;
@@ -818,26 +709,26 @@
   }
 
   function renderDay(page, extracted, fallbackLabel) {
-    var sec = document.createElement('section');
+    var sec = create('section');
     sec.className = 'wmt-pp-day';
-    var h1 = document.createElement('h1');
+    var h1 = create('h1');
     h1.textContent = extracted.dateText || fallbackLabel || 'Worksheet';
     sec.appendChild(h1);
-    var meta = document.createElement('div');
+    var meta = create('div');
     meta.className = 'meta';
     meta.textContent = [extracted.facility, extracted.area, extracted.payPeriod ? ('PP ' + extracted.payPeriod) : ''].filter(Boolean).join(' · ');
     sec.appendChild(meta);
 
-    var grid = document.createElement('div');
+    var grid = create('div');
     grid.className = 'wmt-pp-grid';
-    var left = document.createElement('div');
-    var right = document.createElement('div');
+    var left = create('div');
+    var right = create('div');
     right.className = 'wmt-pp-requests';
 
     addHeading(left, 'Scheduled shifts');
     var shifts = extracted.shifts || [];
     if (!shifts.length) {
-      var empty = document.createElement('div');
+      var empty = create('div');
       empty.className = 'wmt-pp-empty';
       empty.textContent = 'No shift table found for this day.';
       left.appendChild(empty);
@@ -873,7 +764,7 @@
     var reqs = mergeRowLists(extracted.requests, mergeRowLists(extracted.xte, extracted.supReq));
     addHeading(right, 'Requests');
     if (!reqs.length) {
-      var none = document.createElement('div');
+      var none = create('div');
       none.className = 'wmt-pp-empty';
       none.textContent = 'None';
       right.appendChild(none);
@@ -887,40 +778,18 @@
     page.appendChild(sec);
   }
 
-  function finishReady(status) {
-    saveSnapshot(pagesHtml(), status);
-    watchOverlay();
-    setStatus(status + ' Click Print when you want a printout or PDF.');
-  }
-
-  function restoreSnapshot() {
-    var snap = loadSnapshot();
-    if (!snap) return false;
-    window.__wmtPPClosed = false;
-    ensureUi();
-    $('wmt-pp-pages').innerHTML = snap.html;
-    if (snap.title) document.title = snap.title;
-    if ($('wmt-pp-summary')) $('wmt-pp-summary').textContent = 'Restored last preview';
-    saveSnapshot(snap.html, snap.status);
-    completeProgress();
-    watchOverlay();
-    setStatus('Restored the last preview after a WMT refresh. Click Print for a printout or PDF, or Reload to fetch again.');
-    return true;
-  }
-
   async function collectAndRender() {
-    if (window.__wmtPPBusy) return;
-    window.__wmtPPClosed = false;
-    window.__wmtPPBusy = true;
     try {
-      ensureUi();
       var days = collectDays();
       var currentNum = currentDayNum();
       var homeArea = currentAreaInfo(document);
       var pair = findPairedArea(document);
-      $('wmt-pp-summary').textContent = days.length
-        ? ('Found ' + days.length + ' days' + (pair ? (' + ' + pair.name) : ''))
-        : 'No date strip found';
+      var summary = $v('wmt-pp-summary');
+      if (summary) {
+        summary.textContent = days.length
+          ? ('Found ' + days.length + ' days' + (pair ? (' + ' + pair.name) : ''))
+          : 'No date strip found';
+      }
 
       if (!days.length) {
         setStatus('Could not find the pay-period date row (WorksheetViewDayStrip).');
@@ -928,7 +797,7 @@
       }
 
       beginProgress(days.length + (pair && pair.id ? days.length + 2 : 0));
-      var pages = $('wmt-pp-pages');
+      var pages = $v('wmt-pp-pages');
       var primary = await loadAreaDays(days, currentNum, homeArea && homeArea.name, homeArea && homeArea.name);
       var secondary = [];
       var pairNote = '';
@@ -936,6 +805,7 @@
 
       if (pair && pair.id) {
         try {
+          if (!stillThisRun()) throw new Error('superseded');
           tickProgress('Switching to ' + pair.name + '…');
           switchedDoc = await selectArea(pair.id, document);
           var switchedName = extractArea(switchedDoc);
@@ -945,10 +815,12 @@
             secondary = await loadAreaDays(days, null, pair.name, pair.name);
           }
         } catch (err) {
+          if (err && err.message === 'superseded') throw err;
           pairNote = ' Could not load ' + pair.name + ': ' + (err && err.message ? err.message : err);
         }
         try {
           if (homeArea && homeArea.id) {
+            if (!stillThisRun()) throw new Error('superseded');
             tickProgress('Switching back to ' + homeArea.name + '…');
             await selectArea(homeArea.id, switchedDoc || document);
           }
@@ -965,6 +837,7 @@
         else failCount++;
         if (extracted.date) uniqueDates[extracted.date] = true;
       }
+      if (!pages) return;
       pages.innerHTML = '';
       for (var i = 0; i < days.length; i++) {
         var merged = secondary[i] ? mergeDays(primary[i], secondary[i]) : primary[i];
@@ -976,7 +849,9 @@
       var first = days[0].date || ('day-' + days[0].dayNum);
       var last = days[days.length - 1].date || ('day-' + days[days.length - 1].dayNum);
       var pp = extractPayPeriod(document);
-      document.title = 'WMT Worksheet' + (pp ? (' PP ' + pp) : '') + ' ' + String(first).replace(/\//g, '-') + ' to ' + String(last).replace(/\//g, '-');
+      if (viewDoc) {
+        viewDoc.title = 'WMT Worksheet' + (pp ? (' PP ' + pp) : '') + ' ' + String(first).replace(/\//g, '-') + ' to ' + String(last).replace(/\//g, '-');
+      }
       var uniq = Object.keys(uniqueDates).length;
       var warn = uniq && uniq < days.length
         ? ' Warning: only ' + uniq + ' distinct dates came back. If this still looks like one day repeated, tell me and we will switch load method.'
@@ -987,11 +862,13 @@
       var status = okCount
         ? ('Ready — ' + pairSummary + okCount + ' sheet' + (okCount === 1 ? '' : 's') + ' loaded' + (failCount ? (', ' + failCount + ' incomplete') : '') + '.' + pairNote + warn)
         : ('Loaded pages, but no shift tables were found.' + pairNote);
-      finishReady(status);
+      setStatus(status + ' Click Print when you want a printout or PDF.');
     } catch (err) {
+      if (err && err.message === 'superseded') {
+        setStatus('Stopped — a newer bookmark click started another tab.');
+        return;
+      }
       alert('Pay period printer error: ' + (err && err.message ? err.message : err));
-    } finally {
-      window.__wmtPPBusy = false;
     }
   }
 
@@ -1004,7 +881,16 @@
     return;
   }
 
-  if (hasPages()) return;
-  if (restoreSnapshot()) return;
+  var leftover = document.getElementById('wmt-pp-root');
+  if (leftover) leftover.remove();
+  var leftoverStyle = document.getElementById('wmt-pp-style');
+  if (leftoverStyle) leftoverStyle.remove();
+  if (window.__wmtPPObserver) {
+    try { window.__wmtPPObserver.disconnect(); } catch (e4) {}
+    window.__wmtPPObserver = null;
+  }
+  try { sessionStorage.removeItem('wmtPPSnapshot'); } catch (e5) {}
+
+  if (!openViewerTab()) return;
   collectAndRender();
 })();
