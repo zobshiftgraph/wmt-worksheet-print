@@ -775,12 +775,11 @@
     page.appendChild(sec);
   }
 
-  async function collectAndRender() {
+  async function collectAndRender(pair) {
     try {
       var days = collectDays();
       var currentNum = currentDayNum();
       var homeArea = currentAreaInfo(document);
-      var pair = findPairedArea(document);
       var summary = $v('wmt-pp-summary');
       if (summary) {
         summary.textContent = days.length
@@ -855,7 +854,7 @@
         : '';
       var pairSummary = secondary.length
         ? ((homeArea && homeArea.name ? homeArea.name : 'Area') + ' with OS merged into Sup, ' + days.length + ' pages. ')
-        : '';
+        : ((homeArea && homeArea.name ? homeArea.name : 'This area') + ' only, ' + days.length + ' pages. ');
       var status = okCount
         ? ('Ready — ' + pairSummary + okCount + ' sheet' + (okCount === 1 ? '' : 's') + ' loaded' + (failCount ? (', ' + failCount + ' incomplete') : '') + '.' + pairNote + warn)
         : ('Loaded pages, but no shift tables were found.' + pairNote);
@@ -888,6 +887,16 @@
   }
   try { sessionStorage.removeItem('wmtPPSnapshot'); } catch (e5) {}
 
+  var pair = findPairedArea(document);
+  var includeOs = false;
+  if (pair && pair.id) {
+    includeOs = confirm(
+      'Add OS schedules?\n\n' +
+      'OK = include ' + pair.name + ' (OS names go in Sup, OS requests are merged).\n' +
+      'Cancel = this area only.'
+    );
+  }
+
   if (!openViewerTab()) return;
-  collectAndRender();
+  collectAndRender(includeOs ? pair : null);
 })();
