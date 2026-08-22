@@ -651,50 +651,29 @@
     }
   }
 
-  function standaloneCss() {
-    return printDocCss() +
-      '.wmt-pp-bar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;background:#f7f4ec;color:#111;border-bottom:2px solid #1e3a5f;font-family:Arial,Helvetica,sans-serif}' +
-      '.wmt-pp-bar b{font-size:15px}' +
-      '.wmt-pp-bar span{font-size:13px}' +
-      '.wmt-pp-btn{border-radius:6px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f}' +
-      '.wmt-pp-pages{padding:16px 18px 36px}' +
-      '@media print{.wmt-pp-bar{display:none!important}.wmt-pp-pages{padding:0}}';
-  }
-
-  function writeStandaloneHtml(html, title, autoPrint) {
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title +
-      '</title><style>' + standaloneCss() + '</style></head><body>' +
-      '<div class="wmt-pp-bar"><div><b>WMT pay period printer</b><br><span>This window is not part of WMT, so a worksheet refresh will not close it.</span></div>' +
-      '<button class="wmt-pp-btn" type="button" id="p">Print</button></div>' +
-      '<div class="wmt-pp-pages" id="wmt-pp-pages">' + html + '</div>' +
-      '<script>(function(){function fit(){var p=document.createElement("div");p.style.cssText="position:absolute;left:-9999px;height:10in;width:1px";document.body.appendChild(p);var m=p.offsetHeight;document.body.removeChild(p);if(!m)return;var days=document.querySelectorAll(".wmt-pp-day");for(var i=0;i<days.length;i++){var d=days[i];d.style.zoom="1";if(d.scrollHeight>m){var z=m/d.scrollHeight;if(z<0.62)z=0.62;d.style.zoom=String(Math.round(z*1000)/1000);}}}function go(){try{fit();}catch(e){}window.print();}document.getElementById("p").onclick=go;setTimeout(function(){try{fit();}catch(e){}' +
-      (autoPrint ? 'go();' : '') +
-      '},350);})();<\/script></body></html>';
-  }
-
-  function openStandaloneWindow(autoPrint) {
-    var html = pagesHtml();
-    if (!html) {
-      if (autoPrint) alert('Nothing to print yet. Wait for the days to finish loading, then click Print.');
-      return null;
+  function openPrintWindow() {
+    if (!hasPages()) {
+      alert('Nothing to print yet. Wait for the days to finish loading, then click Print.');
+      return;
     }
     var title = (document.title || 'WMT Worksheet').replace(/[<>]/g, '');
-    var w = window.__wmtPPPreview;
-    if (!w || w.closed) {
-      w = window.open('', 'wmtPPPreview');
-      window.__wmtPPPreview = w;
-    }
+    var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title +
+      '</title><style>' + printDocCss() + '</style></head><body>' + pagesHtml() + '</body></html>';
+    var w = window.open('', '_blank');
     if (!w) {
-      if (autoPrint) {
-        alert('The browser blocked the preview window.\n\nAllow pop-ups for wmtscheduler.faa.gov, then click Print again.');
-      }
-      return null;
+      alert('The browser blocked the print window.\n\nAllow pop-ups for wmtscheduler.faa.gov, then click Print again.');
+      return;
     }
     w.document.open();
-    w.document.write(writeStandaloneHtml(html, title, !!autoPrint));
+    w.document.write(html);
     w.document.close();
     w.focus();
-    return w;
+    setTimeout(function () {
+      try { fitPrintDays(w.document); } catch (e0) {}
+      setTimeout(function () {
+        try { w.print(); } catch (e1) {}
+      }, 150);
+    }, 350);
   }
 
   function watchOverlay() {
@@ -744,9 +723,7 @@
       el.onclick = handler;
     }
     bind($('wmt-pp-close'), closeOverlay);
-    bind($('wmt-pp-print'), function () {
-      openStandaloneWindow(true);
-    });
+    bind($('wmt-pp-print'), openPrintWindow);
     bind($('wmt-pp-reload'), function () {
       if (window.__wmtPPBusy) return;
       try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch (e2) {}
@@ -913,10 +890,7 @@
   function finishReady(status) {
     saveSnapshot(pagesHtml(), status);
     watchOverlay();
-    var opened = openStandaloneWindow(false);
-    setStatus(opened
-      ? (status + ' Preview is in the other window, so a WMT refresh will not close it.')
-      : (status + ' Allow pop-ups for wmtscheduler.faa.gov, then click Print — that window stays if WMT refreshes.'));
+    setStatus(status + ' Click Print when you want a printout or PDF.');
   }
 
   function restoreSnapshot() {
@@ -930,10 +904,7 @@
     saveSnapshot(snap.html, snap.status);
     completeProgress();
     watchOverlay();
-    var opened = openStandaloneWindow(false);
-    setStatus(opened
-      ? 'Restored the last preview after a WMT refresh. Print from the other window, or click Reload to fetch again.'
-      : 'Restored the last preview after a WMT refresh. Click Print to keep a copy in another window, or Reload to fetch again.');
+    setStatus('Restored the last preview after a WMT refresh. Click Print for a printout or PDF, or Reload to fetch again.');
     return true;
   }
 
@@ -1033,10 +1004,7 @@
     return;
   }
 
-  if (hasPages()) {
-    openStandaloneWindow(false);
-    return;
-  }
+  if (hasPages()) return;
   if (restoreSnapshot()) return;
   collectAndRender();
 })();

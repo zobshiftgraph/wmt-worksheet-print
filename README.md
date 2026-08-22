@@ -26,6 +26,6 @@ Open `index.html` (or `Start Worksheet Printer.bat` on Windows) and drag the boo
 ## Notes
 
 - Works in Chrome or Edge while you are logged into WMT.
-- Stay on the WMT tab while days load. Allow pop-ups so the preview opens in its own window (a WMT refresh will not close that window).
+- Stay on the WMT tab while days load. The overlay is the view; **Print** opens the print dialog (allow pop-ups if it is blocked).
 - If WMT refreshes the overlay, click the bookmark again to restore the last preview, or **Reload** to fetch again.
 - This only reads Worksheet View. It does not change the schedule.
