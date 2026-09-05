@@ -324,6 +324,35 @@
     return areaOrder.map(function (k) { return map[k]; });
   }
 
+  function cellCount(td) {
+    if (!td) return 0;
+    var t = String(td.textContent || '').replace(/\u00a0/g, ' ').replace(/[^\d]/g, '').trim();
+    if (!t) return 0;
+    var n = parseInt(t, 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function parseStaffing(doc) {
+    var tbl = $('tblTopGuidelines', doc);
+    if (!tbl) return [];
+    var trs = tbl.querySelectorAll('tr');
+    if (trs.length < 3) return [];
+    var labels = trs[0].querySelectorAll('td, th');
+    var needed = trs[1].querySelectorAll('td');
+    var scheduled = trs[2].querySelectorAll('td');
+    var out = [];
+    for (var i = 0; i < labels.length; i++) {
+      var label = (labels[i].textContent || '').replace(/\s+/g, ' ').trim();
+      if (!label) continue;
+      out.push({
+        label: label,
+        need: cellCount(needed[i]),
+        have: cellCount(scheduled[i])
+      });
+    }
+    return out;
+  }
+
   function mergeDays(area, os) {
     if (!os || !os.ok) return area;
     if (!area || !area.ok) return os;
@@ -333,6 +362,7 @@
       area: [area.area, os.area].filter(Boolean).join(' + '),
       facility: area.facility || os.facility,
       payPeriod: area.payPeriod || os.payPeriod,
+      staffing: (area.staffing && area.staffing.length) ? area.staffing : (os.staffing || []),
       shifts: mergeShifts(area.shifts, os.shifts),
       requests: mergeRowLists(area.requests, os.requests),
       xte: mergeRowLists(area.xte, os.xte),
@@ -357,6 +387,7 @@
       area: extractArea(doc),
       facility: ($('lblHeaderFacilityName', doc) && $('lblHeaderFacilityName', doc).textContent.trim()) || 'ZOB',
       payPeriod: extractPayPeriod(doc),
+      staffing: safe(function () { return parseStaffing(doc); }, []),
       shifts: safe(function () { return parseShiftTable($('ScheduledShifts', doc)); }, []),
       requests: safe(function () { return parseRequestTable($('tblShiftChange', doc)); }, []),
       xte: safe(function () { return parseRequestTable($('tblXTECTE', doc)); }, []),
@@ -552,7 +583,10 @@
       '.wmt-pp-pages{padding:16px 18px 36px;max-width:1100px;margin:0 auto}',
       '.wmt-pp-day{background:#fff;border:1px solid #cfc8b8;padding:14px 16px 18px;margin:0 0 18px}',
       '.wmt-pp-day h1{font-size:20px;margin:0 0 4px;color:#111}',
-      '.wmt-pp-day .meta{font-size:13px;color:#333;margin-bottom:10px}',
+      '.wmt-pp-day .meta{font-size:13px;color:#333;margin-bottom:8px}',
+      '.wmt-pp-day table.wmt-pp-staff{width:auto;max-width:28rem;margin:0 0 10px;font-size:12px}',
+      '.wmt-pp-staff th,.wmt-pp-staff td{text-align:center;white-space:nowrap;font-weight:700}',
+      '.wmt-pp-staff td.wmt-pp-short{background:#f8d7da;color:#7a1f24}',
       '.wmt-pp-day h2{font-size:13px;margin:10px 0 4px;border-bottom:2px solid #1e3a5f;padding-bottom:2px;color:#111}',
       '.wmt-pp-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;align-items:start}',
       '.wmt-pp-day table{border-collapse:collapse;width:100%;font-size:12px;margin:0 0 8px;color:#111}',
@@ -564,7 +598,7 @@
       '.wmt-pp-requests h2{font-size:12px;margin:8px 0 3px}',
       '.wmt-pp-requests table{font-size:10px}',
       '.wmt-pp-requests td,.wmt-pp-requests th{padding:2px 4px;line-height:1.2;font-weight:400;white-space:normal}',
-      '@media print{html,body{background:#fff}.wmt-pp-bar,.wmt-pp-load,.wmt-pp-wait{display:none!important}.wmt-pp-pages{padding:0;max-width:none}.wmt-pp-day{break-after:page;page-break-after:always;padding:0;border:none;margin:0 0 0}.wmt-pp-day:last-child{break-after:auto;page-break-after:auto}h1{font-size:16pt;margin:0 0 2px}.meta{font-size:10pt;margin:0 0 8px}h2{font-size:11pt;margin:8px 0 3px}.wmt-pp-grid{gap:10px}table{font-size:9.5pt}td,th{padding:3px 6px}.wmt-pp-requests h2{font-size:9pt}.wmt-pp-requests table{font-size:7.5pt}.wmt-pp-requests td,.wmt-pp-requests th{padding:1px 3px}@page{size:letter portrait;margin:.4in}}'
+      '@media print{html,body{background:#fff}.wmt-pp-bar,.wmt-pp-load,.wmt-pp-wait{display:none!important}.wmt-pp-pages{padding:0;max-width:none}.wmt-pp-day{break-after:page;page-break-after:always;padding:0;border:none;margin:0 0 0}.wmt-pp-day:last-child{break-after:auto;page-break-after:auto}h1{font-size:16pt;margin:0 0 2px}.meta{font-size:10pt;margin:0 0 6px}.wmt-pp-day table.wmt-pp-staff{width:auto!important;max-width:none;margin:0 0 6px;font-size:9pt}h2{font-size:11pt;margin:8px 0 3px}.wmt-pp-grid{gap:10px}table{font-size:9.5pt}td,th{padding:3px 6px}.wmt-pp-requests h2{font-size:9pt}.wmt-pp-requests table{font-size:7.5pt}.wmt-pp-requests td,.wmt-pp-requests th{padding:1px 3px}@page{size:letter portrait;margin:.4in}}'
     ].join('');
   }
 
@@ -694,6 +728,7 @@
         if (cell && typeof cell === 'object') {
           td.textContent = cell.text || '';
           if (cell.bg) td.style.backgroundColor = cell.bg;
+          if (cell.short) td.className = 'wmt-pp-short';
         } else {
           td.textContent = cell || '';
         }
@@ -715,6 +750,16 @@
     meta.className = 'meta';
     meta.textContent = [extracted.facility, extracted.area, extracted.payPeriod ? ('PP ' + extracted.payPeriod) : ''].filter(Boolean).join(' · ');
     sec.appendChild(meta);
+    if (extracted.staffing && extracted.staffing.length) {
+      var staffTbl = buildTable(
+        extracted.staffing.map(function (c) { return c.label; }),
+        [extracted.staffing.map(function (c) {
+          return { text: c.have + ' of ' + c.need, short: c.have < c.need };
+        })]
+      );
+      staffTbl.className = 'wmt-pp-staff';
+      sec.appendChild(staffTbl);
+    }
 
     var grid = create('div');
     grid.className = 'wmt-pp-grid';
